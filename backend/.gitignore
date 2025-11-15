@@ -1,0 +1,16 @@
+node_modules/
+.env
+.env.local
+.env.production
+logs
+*.log
+npm-debug.log*
+coverage/
+dist/
+build/
+uploads/*
+!uploads/.gitkeep
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

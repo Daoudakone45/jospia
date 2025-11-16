@@ -1,5 +1,6 @@
 const supabase = require('../config/supabase');
 const { dormitoryAssignmentSchema } = require('../utils/validation');
+const dormitoryService = require('../services/dormitoryService');
 
 const getAllDormitories = async (req, res, next) => {
   try {
@@ -416,13 +417,102 @@ const deleteDormitory = async (req, res, next) => {
   }
 };
 
+const getAllAssignments = async (req, res, next) => {
+  try {
+    const { dormitory_id, gender } = req.query;
+
+    let query = supabase
+      .from('dormitory_assignments')
+      .select(`
+        id,
+        inscription_id,
+        dormitory_id,
+        assigned_at,
+        dormitories (id, name, gender),
+        inscriptions (id, first_name, last_name, gender, contact_phone)
+      `);
+
+    if (dormitory_id) {
+      query = query.eq('dormitory_id', dormitory_id);
+    }
+
+    const { data, error } = await query.order('assigned_at', { ascending: false });
+
+    if (error) {
+      console.error('❌ Erreur récupération assignments:', error.message);
+      return res.status(400).json({
+        success: false,
+        message: error.message
+      });
+    }
+
+    // Filtrer par genre côté serveur si nécessaire
+    let filteredData = data || [];
+    if (gender && filteredData.length > 0) {
+      filteredData = filteredData.filter(assignment => 
+        assignment.dormitories?.gender === gender
+      );
+    }
+
+    res.json({
+      success: true,
+      data: filteredData
+    });
+  } catch (error) {
+    console.error('❌ Erreur getAllAssignments:', error);
+    next(error);
+  }
+};
+
+const unassignDormitory = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const result = await dormitoryService.unassignDormitory(id);
+
+    if (!result.success) {
+      return res.status(400).json(result);
+    }
+
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+const reassignDormitory = async (req, res, next) => {
+  try {
+    const { inscription_id, new_dormitory_id } = req.body;
+
+    if (!inscription_id || !new_dormitory_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'inscription_id and new_dormitory_id are required'
+      });
+    }
+
+    const result = await dormitoryService.reassignDormitory(inscription_id, new_dormitory_id);
+
+    if (!result.success) {
+      return res.status(400).json(result);
+    }
+
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getAllDormitories,
   getAvailableSlots,
   getAssignment,
+  getAllAssignments,
   createDormitory,
   updateDormitory,
   assignDormitory,
   updateAssignment,
+  unassignDormitory,
+  reassignDormitory,
   deleteDormitory
 };

@@ -3,6 +3,7 @@ const axios = require('axios');
 const { v4: uuidv4 } = require('uuid');
 const { paymentInitiateSchema } = require('../utils/validation');
 const { sendPaymentReceiptEmail } = require('../utils/emailService');
+const dormitoryService = require('../services/dormitoryService');
 
 const initiatePayment = async (req, res, next) => {
   try {
@@ -189,7 +190,7 @@ const paymentCallback = async (req, res, next) => {
         .update({ status: 'confirmed' })
         .eq('id', payment.inscription_id);
 
-      // Generate receipt
+      // Générer le reçu
       const receiptNumber = `${process.env.RECEIPT_PREFIX}${Date.now()}`;
       const { data: receipt } = await supabase
         .from('receipts')
@@ -200,8 +201,18 @@ const paymentCallback = async (req, res, next) => {
         .select()
         .single();
 
-      // Auto-assign dormitory
-      await autoAssignDormitory(payment.inscriptions);
+      // Attribution automatique du dortoir
+      console.log('🏠 Démarrage attribution automatique dortoir...');
+      const assignmentResult = await dormitoryService.assignDormitory(
+        payment.inscription_id,
+        payment.inscriptions.gender
+      );
+      
+      if (assignmentResult.success) {
+        console.log('✅ Dortoir attribué:', assignmentResult.dormitory?.name);
+      } else {
+        console.warn('⚠️ Échec attribution dortoir:', assignmentResult.message);
+      }
 
       // Send receipt email
       const { data: user } = await supabase
@@ -310,6 +321,19 @@ const checkPaymentStatus = async (req, res, next) => {
             .from('inscriptions')
             .update({ status: 'confirmed' })
             .eq('id', payment.inscription_id);
+
+          // Attribution automatique du dortoir
+          console.log('🏠 Attribution automatique dortoir après vérification paiement...');
+          const assignmentResult = await dormitoryService.assignDormitory(
+            payment.inscription_id,
+            payment.inscriptions.gender
+          );
+          
+          if (assignmentResult.success) {
+            console.log('✅ Dortoir attribué:', assignmentResult.dormitory?.name);
+          } else {
+            console.warn('⚠️ Échec attribution dortoir:', assignmentResult.message);
+          }
         }
 
         return res.json({
@@ -391,37 +415,8 @@ const getAllPayments = async (req, res, next) => {
 };
 
 // Helper function to auto-assign dormitory
-const autoAssignDormitory = async (inscription) => {
-  try {
-    // Find available dormitory for gender
-    const { data: dormitory } = await supabase
-      .from('dormitories')
-      .select('*')
-      .eq('gender', inscription.gender)
-      .gt('available_slots', 0)
-      .order('available_slots', { ascending: false })
-      .limit(1)
-      .single();
-
-    if (dormitory) {
-      // Assign dormitory
-      await supabase
-        .from('dormitory_assignments')
-        .insert([{
-          inscription_id: inscription.id,
-          dormitory_id: dormitory.id
-        }]);
-
-      // Update available slots
-      await supabase
-        .from('dormitories')
-        .update({ available_slots: dormitory.available_slots - 1 })
-        .eq('id', dormitory.id);
-    }
-  } catch (error) {
-    console.error('Auto-assign dormitory error:', error);
-  }
-};
+// Note: L'attribution automatique des dortoirs est gérée par dormitoryService
+// Voir: src/services/dormitoryService.js
 
 module.exports = {
   initiatePayment,

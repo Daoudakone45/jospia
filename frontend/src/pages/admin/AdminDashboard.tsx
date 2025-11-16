@@ -19,10 +19,17 @@ const AdminDashboard: React.FC = () => {
     },
     {
       title: 'Dortoirs',
-      description: 'Gérer les dortoirs et les affectations',
+      description: 'Gérer les dortoirs et les capacités',
       icon: '🏠',
       link: '/admin/dormitories',
       color: 'purple'
+    },
+    {
+      title: 'Affectations',
+      description: 'Gérer les affectations aux dortoirs',
+      icon: '🛏️',
+      link: '/admin/assignments',
+      color: 'orange'
     }
   ];
 

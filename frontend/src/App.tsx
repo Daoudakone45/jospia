@@ -15,6 +15,7 @@ import AdminDashboard from './pages/admin/AdminDashboard'
 import AdminInscriptions from './pages/admin/AdminInscriptions'
 import AdminPayments from './pages/admin/AdminPayments'
 import AdminDormitories from './pages/admin/AdminDormitories'
+import AdminAssignments from './pages/admin/AdminAssignments'
 
 // Components
 import ProtectedRoute from './components/ProtectedRoute'
@@ -112,6 +113,14 @@ function App() {
             element={
               <AdminRoute>
                 <AdminDormitories />
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/assignments"
+            element={
+              <AdminRoute>
+                <AdminAssignments />
               </AdminRoute>
             }
           />

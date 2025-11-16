@@ -21,9 +21,9 @@ const inscriptionSchema = Joi.object({
   health_condition: Joi.string().max(255).allow('', null).optional(),
   age: Joi.number().integer().min(13).max(100).required(),
   residence_location: Joi.string().max(255).required(),
-  contact_phone: Joi.string().pattern(/^[0-9]{8,15}$/).required(),
+  contact_phone: Joi.string().pattern(/^\+?[0-9]{8,15}$/).required(),
   guardian_name: Joi.string().max(100).allow('', null).optional(),
-  guardian_contact: Joi.string().pattern(/^[0-9]{8,15}$/).allow('', null).optional(),
+  guardian_contact: Joi.string().pattern(/^\+?[0-9]{8,15}$/).allow('', null).optional(),
   gender: Joi.string().valid('male', 'female').required()
 });
 

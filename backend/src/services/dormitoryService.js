@@ -13,7 +13,7 @@ const assignDormitory = async (inscriptionId, gender) => {
     // 1. Vérifier que l'inscription existe
     const { data: inscription, error: inscriptionError } = await supabase
       .from('inscriptions')
-      .select('id, user_id, full_name, gender')
+      .select('id, user_id, first_name, last_name, gender')
       .eq('id', inscriptionId)
       .single();
 
@@ -36,7 +36,7 @@ const assignDormitory = async (inscriptionId, gender) => {
       };
     }
 
-    console.log(`👤 Participant: ${inscription.full_name}, Genre: ${participantGender}`);
+    console.log(`👤 Participant: ${inscription.first_name} ${inscription.last_name}, Genre: ${participantGender}`);
 
     // 2. Vérifier si déjà assigné
     const { data: existingAssignment } = await supabase
@@ -125,7 +125,7 @@ const assignDormitory = async (inscriptionId, gender) => {
     }
 
     console.log('✅ Attribution réussie:', {
-      participant: inscription.full_name,
+      participant: `${inscription.first_name} ${inscription.last_name}`,
       dortoir: selectedDormitory.name,
       places_restantes: selectedDormitory.available_slots - 1
     });

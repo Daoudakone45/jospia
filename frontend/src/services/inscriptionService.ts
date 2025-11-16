@@ -1,6 +1,4 @@
-import axios from 'axios';
-
-const API_URL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:5000/api';
+import api from '../lib/api';
 
 export interface InscriptionData {
   first_name: string;
@@ -27,13 +25,7 @@ export const inscriptionService = {
    * Créer une nouvelle inscription
    */
   async create(data: InscriptionData): Promise<InscriptionResponse> {
-    const token = localStorage.getItem('token');
-    const response = await axios.post(`${API_URL}/inscriptions`, data, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-    });
+    const response = await api.post('/inscriptions', data);
     return response.data;
   },
 
@@ -41,12 +33,7 @@ export const inscriptionService = {
    * Récupérer l'inscription de l'utilisateur connecté
    */
   async getMyInscription(): Promise<InscriptionResponse | null> {
-    const token = localStorage.getItem('token');
-    const response = await axios.get(`${API_URL}/inscriptions/my-inscription`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
+    const response = await api.get('/inscriptions/my-inscription');
     return response.data;
   },
 
@@ -58,13 +45,8 @@ export const inscriptionService = {
     section?: string;
     gender?: string;
   }): Promise<InscriptionResponse[]> {
-    const token = localStorage.getItem('token');
     const params = new URLSearchParams(filters as Record<string, string>);
-    const response = await axios.get(`${API_URL}/inscriptions?${params}`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
+    const response = await api.get(`/inscriptions?${params}`);
     return response.data;
   },
 
@@ -75,27 +57,13 @@ export const inscriptionService = {
     inscriptionId: string,
     status: 'pending' | 'confirmed' | 'cancelled'
   ): Promise<void> {
-    const token = localStorage.getItem('token');
-    await axios.patch(
-      `${API_URL}/inscriptions/${inscriptionId}/status`,
-      { status },
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      }
-    );
+    await api.patch(`/inscriptions/${inscriptionId}/status`, { status });
   },
 
   /**
    * Supprimer une inscription (Admin)
    */
   async delete(inscriptionId: string): Promise<void> {
-    const token = localStorage.getItem('token');
-    await axios.delete(`${API_URL}/inscriptions/${inscriptionId}`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
+    await api.delete(`/inscriptions/${inscriptionId}`);
   },
 };

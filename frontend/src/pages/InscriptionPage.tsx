@@ -32,6 +32,7 @@ const InscriptionPage: React.FC = () => {
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [formData, setFormData] = useState<FormData>({
     first_name: '',
     last_name: '',
@@ -62,6 +63,36 @@ const InscriptionPage: React.FC = () => {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
+    
+    // Clear error for this field when user starts typing
+    if (validationErrors[name]) {
+      setValidationErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors[name];
+        return newErrors;
+      });
+    }
+  };
+
+  // Helper to get input class names based on error state
+  const getInputClassName = (fieldName: string) => {
+    const baseClass = "w-full px-4 py-2 border rounded-lg focus:ring-2 focus:border-transparent";
+    if (validationErrors[fieldName]) {
+      return `${baseClass} border-red-500 focus:ring-red-500`;
+    }
+    return `${baseClass} border-gray-300 focus:ring-green-500`;
+  };
+
+  // Helper to render error message
+  const renderError = (fieldName: string) => {
+    if (validationErrors[fieldName]) {
+      return (
+        <p className="mt-1 text-sm text-red-600">
+          {validationErrors[fieldName]}
+        </p>
+      );
+    }
+    return null;
   };
 
   const validateStep = (step: number): boolean => {
@@ -132,11 +163,33 @@ const InscriptionPage: React.FC = () => {
       const response = await inscriptionService.create(inscriptionData);
       toast.success('Inscription créée avec succès !');
       localStorage.removeItem('inscription_draft');
+      setValidationErrors({}); // Clear errors on success
       
       // Rediriger vers la page de paiement avec l'ID de l'inscription
       navigate(`/payment?inscription_id=${response.id}`);
     } catch (error: any) {
       console.error('Erreur inscription:', error);
+      
+      // Si erreur 401, l'utilisateur n'est pas authentifié
+      if (error.response?.status === 401) {
+        toast.error('Votre session a expiré. Veuillez vous reconnecter.');
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('user');
+        navigate('/login');
+        return;
+      }
+      
+      // Si erreur de validation (400 avec errors array)
+      if (error.response?.status === 400 && error.response?.data?.errors) {
+        const errors: Record<string, string> = {};
+        error.response.data.errors.forEach((err: any) => {
+          errors[err.field] = err.message;
+        });
+        setValidationErrors(errors);
+        toast.error(error.response.data.message || 'Veuillez corriger les erreurs du formulaire');
+        return;
+      }
+      
       const message = error.response?.data?.message || 'Erreur lors de l\'inscription';
       toast.error(message);
     } finally {
@@ -209,10 +262,11 @@ const InscriptionPage: React.FC = () => {
                       name="last_name"
                       value={formData.last_name}
                       onChange={handleChange}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                      className={getInputClassName('last_name')}
                       placeholder="Votre nom"
                       required
                     />
+                    {renderError('last_name')}
                   </div>
 
                   <div>
@@ -224,10 +278,11 @@ const InscriptionPage: React.FC = () => {
                       name="first_name"
                       value={formData.first_name}
                       onChange={handleChange}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                      className={getInputClassName('first_name')}
                       placeholder="Votre prénom"
                       required
                     />
+                    {renderError('first_name')}
                   </div>
 
                   <div>
@@ -241,10 +296,11 @@ const InscriptionPage: React.FC = () => {
                       max="100"
                       value={formData.age}
                       onChange={handleChange}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                      className={getInputClassName('age')}
                       placeholder="Minimum 13 ans"
                       required
                     />
+                    {renderError('age')}
                   </div>
 
                   <div>
@@ -255,13 +311,14 @@ const InscriptionPage: React.FC = () => {
                       name="gender"
                       value={formData.gender}
                       onChange={handleChange}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                      className={getInputClassName('gender')}
                       required
                     >
                       <option value="">--Choisir--</option>
                       <option value="male">Masculin</option>
                       <option value="female">Féminin</option>
                     </select>
+                    {renderError('gender')}
                   </div>
 
                   <div>
@@ -273,10 +330,11 @@ const InscriptionPage: React.FC = () => {
                       name="residence_location"
                       value={formData.residence_location}
                       onChange={handleChange}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                      className={getInputClassName('residence_location')}
                       placeholder="Ville, quartier"
                       required
                     />
+                    {renderError('residence_location')}
                   </div>
 
                   <div>
@@ -288,10 +346,11 @@ const InscriptionPage: React.FC = () => {
                       name="contact_phone"
                       value={formData.contact_phone}
                       onChange={handleChange}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                      placeholder="+225 XX XX XX XX XX"
+                      className={getInputClassName('contact_phone')}
+                      placeholder="+225 XX XX XX XX XX ou 01234567"
                       required
                     />
+                    {renderError('contact_phone')}
                   </div>
                 </div>
               </div>
@@ -312,7 +371,7 @@ const InscriptionPage: React.FC = () => {
                     name="section"
                     value={formData.section}
                     onChange={handleChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    className={getInputClassName('section')}
                     required
                   >
                     <option value="">--Choisir votre section--</option>
@@ -322,6 +381,7 @@ const InscriptionPage: React.FC = () => {
                       </option>
                     ))}
                   </select>
+                  {renderError('section')}
                 </div>
 
                 <div>
@@ -375,10 +435,11 @@ const InscriptionPage: React.FC = () => {
                     name="guardian_name"
                     value={formData.guardian_name}
                     onChange={handleChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    className={getInputClassName('guardian_name')}
                     placeholder="Nom complet du tuteur"
                     required
                   />
+                  {renderError('guardian_name')}
                 </div>
 
                 <div>
@@ -390,10 +451,10 @@ const InscriptionPage: React.FC = () => {
                     name="guardian_contact"
                     value={formData.guardian_contact}
                     onChange={handleChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                    placeholder="+225 XX XX XX XX XX"
-                    required
+                    className={getInputClassName('guardian_contact')}
+                    placeholder="+225 XX XX XX XX XX ou 01234567 (optionnel)"
                   />
+                  {renderError('guardian_contact')}
                 </div>
               </div>
             )}

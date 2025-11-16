@@ -7,7 +7,7 @@ const getAllDormitories = async (req, res, next) => {
 
     let query = supabase
       .from('dormitories')
-      .select('*');
+      .select('id, name, gender, total_capacity, available_slots, created_at');
 
     if (gender) {
       query = query.eq('gender', gender);
@@ -312,6 +312,70 @@ const updateAssignment = async (req, res, next) => {
   }
 };
 
+const updateDormitory = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { name, gender, total_capacity } = req.body;
+
+    // Get current dormitory
+    const { data: currentDormitory, error: fetchError } = await supabase
+      .from('dormitories')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (fetchError || !currentDormitory) {
+      return res.status(404).json({
+        success: false,
+        message: 'Dormitory not found'
+      });
+    }
+
+    // Calculate new available_slots if capacity changes
+    let available_slots = currentDormitory.available_slots;
+    if (total_capacity && total_capacity !== currentDormitory.total_capacity) {
+      const occupied = currentDormitory.total_capacity - currentDormitory.available_slots;
+      available_slots = total_capacity - occupied;
+      
+      // Check if new capacity is sufficient
+      if (available_slots < 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'New capacity is too small for current assignments'
+        });
+      }
+    }
+
+    const updateData = {
+      ...(name && { name }),
+      ...(gender && { gender }),
+      ...(total_capacity && { total_capacity, available_slots })
+    };
+
+    const { data, error } = await supabase
+      .from('dormitories')
+      .update(updateData)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: error.message
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Dormitory updated successfully',
+      data
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 const deleteDormitory = async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -357,6 +421,7 @@ module.exports = {
   getAvailableSlots,
   getAssignment,
   createDormitory,
+  updateDormitory,
   assignDormitory,
   updateAssignment,
   deleteDormitory

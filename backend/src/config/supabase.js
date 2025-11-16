@@ -22,6 +22,15 @@ const supabase = createClient(supabaseUrl, supabaseKey, {
     headers: {
       'Content-Type': 'application/json'
     }
+  },
+  db: {
+    schema: 'public'
+  },
+  // Optimisations réseau
+  realtime: {
+    params: {
+      eventsPerSecond: 10
+    }
   }
 });
 

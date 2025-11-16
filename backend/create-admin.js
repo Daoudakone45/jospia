@@ -41,15 +41,33 @@ async function createAdmin() {
       console.log('   Email:', existingUser.email);
       console.log('   Role:', existingUser.role);
       
+      // Mettre à jour les user_metadata dans Supabase Auth
+      console.log('\n🔄 Mise à jour des métadonnées Supabase Auth...');
+      const { error: updateMetaError } = await supabase.auth.admin.updateUserById(
+        existingUser.id,
+        {
+          user_metadata: {
+            full_name: adminName,
+            role: 'admin'
+          }
+        }
+      );
+
+      if (updateMetaError) {
+        console.warn('⚠️  Erreur mise à jour métadonnées:', updateMetaError.message);
+      } else {
+        console.log('✅ Métadonnées Auth mises à jour avec le rôle admin');
+      }
+      
       if (existingUser.role === 'admin') {
         console.log('\n✅ Le compte admin existe déjà avec le bon rôle !');
         console.log('\n📧 Email:', adminEmail);
         console.log('🔑 Mot de passe:', adminPassword);
-        console.log('\n💡 Essayez de vous connecter avec ces identifiants.');
-        console.log('   Si la connexion échoue, le compte existe en base mais pas dans Supabase Auth.');
+        console.log('\n💡 IMPORTANT: Déconnectez-vous et reconnectez-vous');
+        console.log('   pour que le nouveau JWT contienne le rôle admin !');
         return;
       } else {
-        console.log('\n🔄 Mise à jour du rôle en admin...');
+        console.log('\n🔄 Mise à jour du rôle en admin dans la table users...');
         const { error: updateError } = await supabase
           .from('users')
           .update({ role: 'admin' })
@@ -59,6 +77,7 @@ async function createAdmin() {
           console.error('❌ Erreur lors de la mise à jour:', updateError.message);
         } else {
           console.log('✅ Rôle mis à jour en admin !');
+          console.log('\n💡 IMPORTANT: Déconnectez-vous et reconnectez-vous !');
         }
         return;
       }
@@ -71,7 +90,8 @@ async function createAdmin() {
       password: adminPassword,
       email_confirm: true, // Auto-confirmer l'email
       user_metadata: {
-        full_name: adminName
+        full_name: adminName,
+        role: 'admin' // Ajouter le rôle dans les métadonnées JWT
       }
     });
 
@@ -102,6 +122,24 @@ async function createAdmin() {
         if (existingAuthUser) {
           console.log('✅ Utilisateur trouvé dans Auth, ID:', existingAuthUser.id);
           
+          // Mettre à jour les user_metadata pour inclure le rôle
+          console.log('🔄 Mise à jour des métadonnées utilisateur...');
+          const { error: updateMetaError } = await supabase.auth.admin.updateUserById(
+            existingAuthUser.id,
+            {
+              user_metadata: {
+                full_name: adminName,
+                role: 'admin'
+              }
+            }
+          );
+
+          if (updateMetaError) {
+            console.warn('⚠️  Erreur mise à jour métadonnées:', updateMetaError.message);
+          } else {
+            console.log('✅ Métadonnées mises à jour (le rôle sera dans le JWT)');
+          }
+          
           // Insérer dans la table users avec UPSERT
           console.log('📊 Synchronisation avec la table users...');
           const { data: insertData, error: insertError } = await supabase
@@ -129,7 +167,8 @@ async function createAdmin() {
             console.log('👤 Nom:', adminName);
             console.log('🆔 ID:', existingAuthUser.id);
             console.log('═══════════════════════════════════════');
-            console.log('\n💡 Vous pouvez maintenant vous connecter !');
+            console.log('\n💡 IMPORTANT: Déconnectez-vous et reconnectez-vous');
+            console.log('   pour que le nouveau JWT contienne le rôle admin !');
           }
         } else {
           console.log('❌ Utilisateur non trouvé dans la liste');

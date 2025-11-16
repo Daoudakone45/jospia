@@ -130,10 +130,10 @@ const login = async (req, res, next) => {
 
     console.log('✅ Authentification Supabase réussie, user ID:', data.user.id);
 
-    // Get user details
+    // Get user details - seulement les colonnes nécessaires
     const { data: userData, error: userError } = await supabase
       .from('users')
-      .select('*')
+      .select('id, email, full_name, role')
       .eq('id', data.user.id)
       .single();
 

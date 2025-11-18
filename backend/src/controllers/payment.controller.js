@@ -56,12 +56,15 @@ const initiatePayment = async (req, res, next) => {
     // Generate unique reference
     const reference = `JOSPIA-${Date.now()}-${uuidv4().substring(0, 8)}`;
 
+    // Fixed amount for JOSPIA seminar
+    const SEMINAR_PRICE = 5000; // 5000 FCFA
+
     // Create payment record
     const { data: payment, error: paymentError } = await supabase
       .from('payments')
       .insert([{
         inscription_id,
-        amount: inscription.ticket_price,
+        amount: SEMINAR_PRICE,
         payment_method,
         reference_code: reference,
         status: 'pending'
@@ -82,7 +85,7 @@ const initiatePayment = async (req, res, next) => {
         apikey: process.env.CINETPAY_API_KEY,
         site_id: process.env.CINETPAY_SITE_ID,
         transaction_id: reference,
-        amount: inscription.ticket_price,
+        amount: SEMINAR_PRICE,
         currency: process.env.CURRENCY || 'XOF',
         description: `Inscription JOSPIA - ${inscription.first_name} ${inscription.last_name}`,
         customer_name: `${inscription.first_name} ${inscription.last_name}`,
@@ -472,7 +475,17 @@ const simulatePaymentSuccess = async (req, res, next) => {
 
     // Auto-assign dormitory
     try {
-      const assignment = await dormitoryService.autoAssignDormitory(payment.inscription_id);
+      // Récupérer l'inscription pour obtenir le genre
+      const { data: inscription } = await supabase
+        .from('inscriptions')
+        .select('gender')
+        .eq('id', payment.inscription_id)
+        .single();
+      
+      const assignment = await dormitoryService.assignDormitory(
+        payment.inscription_id,
+        inscription?.gender
+      );
       console.log('✅ Dortoir attribué automatiquement:', assignment);
     } catch (assignError) {
       console.error('❌ Erreur attribution dortoir:', assignError);
@@ -575,12 +588,198 @@ const downloadReceipt = async (req, res, next) => {
   }
 };
 
+// Create and complete payment in one step (for development without CinetPay)
+const createSimplePayment = async (req, res, next) => {
+  try {
+    console.log('📝 createSimplePayment - Body:', req.body);
+    console.log('👤 User:', req.user);
+    
+    // Validate input
+    const { error: validationError, value } = paymentInitiateSchema.validate(req.body);
+    if (validationError) {
+      console.error('❌ Validation error:', validationError.details);
+      validationError.isJoi = true;
+      return next(validationError);
+    }
+
+    const { inscription_id, payment_method } = value;
+
+    // Check if inscription exists and belongs to user
+    const { data: inscription, error: inscriptionError } = await supabase
+      .from('inscriptions')
+      .select('*')
+      .eq('id', inscription_id)
+      .single();
+
+    console.log('📋 Inscription:', inscription);
+    console.log('❌ Inscription error:', inscriptionError);
+
+    if (inscriptionError || !inscription) {
+      return res.status(404).json({
+        success: false,
+        message: 'Inscription introuvable'
+      });
+    }
+
+    if (inscription.user_id !== req.user.id) {
+      console.error('❌ Access denied - user_id mismatch:', {
+        inscription_user_id: inscription.user_id,
+        request_user_id: req.user.id
+      });
+      return res.status(403).json({
+        success: false,
+        message: 'Accès refusé'
+      });
+    }
+
+    // Check if already paid
+    console.log('🔍 Vérification paiement existant...');
+    const { data: existingPayment, error: existingPaymentError } = await supabase
+      .from('payments')
+      .select('*')
+      .eq('inscription_id', inscription_id)
+      .eq('status', 'success')
+      .single();
+
+    console.log('💰 Paiement existant:', existingPayment);
+    console.log('❌ Erreur paiement existant:', existingPaymentError);
+
+    if (existingPayment) {
+      console.log('⚠️  Paiement déjà effectué !');
+      return res.status(400).json({
+        success: false,
+        message: 'Paiement déjà effectué pour cette inscription'
+      });
+    }
+
+    // Generate unique reference
+    console.log('🎫 Génération de la référence...');
+    const reference = `JOSPIA-${Date.now()}-${uuidv4().substring(0, 8)}`;
+    const SEMINAR_PRICE = 5000; // 5000 FCFA
+    console.log('✅ Référence:', reference);
+
+    // Create payment record with success status (simulated payment)
+    console.log('💳 Création du paiement dans la base de données...');
+    const { data: payment, error: paymentError } = await supabase
+      .from('payments')
+      .insert([{
+        inscription_id,
+        amount: SEMINAR_PRICE,
+        payment_method,
+        reference_code: reference,
+        status: 'success', // Directly set as success
+        payment_date: new Date().toISOString()
+      }])
+      .select()
+      .single();
+
+    console.log('💰 Paiement créé:', payment);
+    console.log('❌ Erreur création paiement:', paymentError);
+
+    if (paymentError) {
+      console.error('❌ ERREUR SUPABASE:', paymentError);
+      return res.status(400).json({
+        success: false,
+        message: paymentError.message
+      });
+    }
+
+    // Update inscription status to confirmed
+    await supabase
+      .from('inscriptions')
+      .update({ status: 'confirmed' })
+      .eq('id', inscription_id);
+
+    // Auto-assign dormitory
+    console.log('🏠 DÉMARRAGE assignation automatique dortoir...');
+    console.log('   Inscription ID:', inscription_id);
+    console.log('   Genre:', inscription.gender);
+    try {
+      const assignmentResult = await dormitoryService.assignDormitory(inscription_id, inscription.gender);
+      console.log('✅ RÉSULTAT assignation:', assignmentResult);
+      if (assignmentResult.success) {
+        console.log(`✅ Dortoir assigné: ${assignmentResult.dormitory?.name}`);
+      } else {
+        console.error('❌ Échec assignation:', assignmentResult.message);
+      }
+    } catch (assignError) {
+      console.error('⚠️  EXCEPTION lors de l\'assignation dortoir:');
+      console.error('   Message:', assignError.message);
+      console.error('   Stack:', assignError.stack);
+      // Continue même si l'assignation échoue
+    }
+
+    // Send confirmation email
+    try {
+      await sendPaymentReceiptEmail(
+        req.user,                    // user object
+        inscription,                 // inscription object
+        payment,                     // payment object (from DB)
+        null                         // receiptPdfPath (optional, null for now)
+      );
+      console.log('✅ Email de confirmation envoyé à:', req.user.email);
+    } catch (emailError) {
+      console.error('⚠️  Erreur envoi email:', emailError.message);
+      // Continue même si l'email échoue
+    }
+
+    res.status(201).json({
+      success: true,
+      message: 'Paiement simulé avec succès !',
+      data: payment
+    });
+
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Get payment by inscription ID
+const getPaymentByInscription = async (req, res, next) => {
+  try {
+    const { inscriptionId } = req.params;
+
+    // Get payment for this inscription
+    const { data, error } = await supabase
+      .from('payments')
+      .select('*, inscriptions(*)')
+      .eq('inscription_id', inscriptionId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (error || !data) {
+      return res.status(404).json({
+        success: false,
+        message: 'Payment not found'
+      });
+    }
+
+    // Check authorization
+    if (data.inscriptions.user_id !== req.user.id && req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied'
+      });
+    }
+
+    res.json({
+      success: true,
+      data
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   initiatePayment,
   paymentCallback,
   getPayment,
+  getPaymentByInscription,
   checkPaymentStatus,
   getAllPayments,
   simulatePaymentSuccess,
-  downloadReceipt
+  downloadReceipt,
+  createSimplePayment
 };

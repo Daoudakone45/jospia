@@ -21,14 +21,11 @@ const PaymentPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [selectedMethod, setSelectedMethod] = useState<string>('');
-  const [paymentCreated, setPaymentCreated] = useState(false);
-  const [paymentId, setPaymentId] = useState<string>('');
-  const [paymentReference, setPaymentReference] = useState<string>('');
 
   const paymentMethods = [
-    { id: 'orange', name: 'Orange Money', icon: '🟠', color: 'orange' },
-    { id: 'mtn', name: 'MTN Money', icon: '🟡', color: 'yellow' },
-    { id: 'moov', name: 'Moov Money', icon: '🟢', color: 'green' },
+    { id: 'orange_money', name: 'Orange Money', icon: '🟠', color: 'orange' },
+    { id: 'mtn_money', name: 'MTN Money', icon: '🟡', color: 'yellow' },
+    { id: 'moov_money', name: 'Moov Money', icon: '🟢', color: 'green' },
     { id: 'wave', name: 'Wave', icon: '🔵', color: 'blue' }
   ];
 
@@ -49,7 +46,7 @@ const PaymentPage: React.FC = () => {
     }
   };
 
-  const handleInitiatePayment = async () => {
+  const handlePayment = async () => {
     if (!selectedMethod) {
       toast.error('Veuillez sélectionner une méthode de paiement');
       return;
@@ -57,47 +54,26 @@ const PaymentPage: React.FC = () => {
 
     setProcessing(true);
     try {
-      const payment = await paymentService.initiate({
+      toast.loading('Traitement du paiement...');
+      
+      // Créer le paiement simulé directement
+      await paymentService.createSimple({
         inscription_id: inscriptionId!,
         payment_method: selectedMethod
       });
 
-      setPaymentCreated(true);
-      setPaymentId(payment.id);
-      setPaymentReference(payment.reference_code);
-      toast.success('Paiement initié avec succès !');
+      toast.dismiss();
+      toast.success('🎉 Paiement effectué avec succès !');
       
-      // Si CinetPay retourne une URL, on peut rediriger
-      if (payment.cinetpay_payment_url) {
-        window.location.href = payment.cinetpay_payment_url;
-      }
-    } catch (error: any) {
-      console.error('Erreur initiation paiement:', error);
-      toast.error(error.response?.data?.message || 'Erreur lors de l\'initiation du paiement');
-    } finally {
-      setProcessing(false);
-    }
-  };
-
-  const handleSimulatePayment = async () => {
-    if (!paymentId) {
-      toast.error('Aucun paiement en cours');
-      return;
-    }
-
-    setProcessing(true);
-    try {
-      await paymentService.simulate(paymentId);
-      toast.success('🎉 Paiement simulé avec succès !');
-      
-      // Attendre 2 secondes puis rediriger
+      // Attendre 1 seconde puis rediriger
       setTimeout(() => {
         toast.success('✅ Dortoir attribué automatiquement !');
         navigate('/dashboard');
-      }, 2000);
+      }, 1500);
     } catch (error: any) {
-      console.error('Erreur simulation paiement:', error);
-      toast.error(error.response?.data?.message || 'Erreur lors de la simulation');
+      toast.dismiss();
+      console.error('Erreur paiement:', error);
+      toast.error(error.response?.data?.message || 'Erreur lors du paiement');
     } finally {
       setProcessing(false);
     }
@@ -174,98 +150,59 @@ const PaymentPage: React.FC = () => {
             </div>
           </div>
 
-          {!paymentCreated ? (
-            <>
-              {/* Payment Methods */}
-              <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-                <h2 className="text-xl font-bold mb-4">📱 Méthode de paiement</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {paymentMethods.map((method) => (
-                    <button
-                      key={method.id}
-                      onClick={() => setSelectedMethod(method.id)}
-                      className={`p-4 border-2 rounded-lg transition-all ${
-                        selectedMethod === method.id
-                          ? 'border-green-600 bg-green-50'
-                          : 'border-gray-200 hover:border-gray-300'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <span className="text-3xl">{method.icon}</span>
-                        <span className="font-medium">{method.name}</span>
-                      </div>
-                      {selectedMethod === method.id && (
-                        <div className="mt-2 text-green-600 text-sm">✅ Sélectionné</div>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Action Button */}
-              <div className="bg-white rounded-lg shadow-md p-6">
+          {/* Payment Methods */}
+          <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 className="text-xl font-bold mb-4">📱 Méthode de paiement</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {paymentMethods.map((method) => (
                 <button
-                  onClick={handleInitiatePayment}
-                  disabled={!selectedMethod || processing}
-                  className="w-full bg-green-600 text-white py-4 rounded-lg font-bold text-lg hover:bg-green-700 transition disabled:bg-gray-300 disabled:cursor-not-allowed"
+                  key={method.id}
+                  onClick={() => setSelectedMethod(method.id)}
+                  className={`p-4 border-2 rounded-lg transition-all ${
+                    selectedMethod === method.id
+                      ? 'border-green-600 bg-green-50'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
                 >
-                  {processing ? (
-                    <span className="flex items-center justify-center gap-2">
-                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                      Traitement en cours...
-                    </span>
-                  ) : (
-                    '💰 Procéder au paiement'
+                  <div className="flex items-center gap-3">
+                    <span className="text-3xl">{method.icon}</span>
+                    <span className="font-medium">{method.name}</span>
+                  </div>
+                  {selectedMethod === method.id && (
+                    <div className="mt-2 text-green-600 text-sm">✅ Sélectionné</div>
                   )}
                 </button>
-              </div>
-            </>
-          ) : (
-            /* Payment Instructions */
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <div className="text-center mb-6">
-                <div className="text-5xl mb-4">✅</div>
-                <h2 className="text-2xl font-bold text-green-600 mb-2">Paiement initié !</h2>
-                <p className="text-gray-600">Référence : <span className="font-mono font-bold">{paymentReference}</span></p>
-              </div>
-
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-6">
-                <h3 className="font-bold text-blue-900 mb-3">📱 Instructions de paiement</h3>
-                <ol className="text-blue-800 text-sm space-y-2 list-decimal list-inside">
-                  <li>Composez le code de votre opérateur mobile money</li>
-                  <li>Entrez le montant : <strong>{inscription.ticket_price} FCFA</strong></li>
-                  <li>Entrez le numéro marchand qui vous sera fourni</li>
-                  <li>Validez la transaction</li>
-                  <li>Conservez le SMS de confirmation</li>
-                </ol>
-              </div>
-
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
-                <p className="text-yellow-800 text-sm">
-                  ⚠️ <strong>Mode développement :</strong> Utilisez le bouton ci-dessous pour simuler un paiement réussi
-                </p>
-              </div>
-
-              <div className="space-y-3">
-                <button
-                  onClick={handleSimulatePayment}
-                  disabled={processing}
-                  className="w-full bg-yellow-600 text-white py-3 rounded-lg font-medium hover:bg-yellow-700 transition disabled:bg-gray-300"
-                >
-                  {processing ? 'Simulation en cours...' : '🧪 Simuler le paiement (TEST)'}
-                </button>
-                <button
-                  onClick={() => navigate('/dashboard')}
-                  className="w-full bg-gray-200 text-gray-700 py-3 rounded-lg font-medium hover:bg-gray-300 transition"
-                >
-                  Retour au tableau de bord
-                </button>
-              </div>
+              ))}
             </div>
-          )}
+          </div>
+
+          {/* Action Button */}
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <button
+              onClick={handlePayment}
+              disabled={!selectedMethod || processing}
+              className="w-full bg-green-600 text-white py-4 rounded-lg font-bold text-lg hover:bg-green-700 transition disabled:bg-gray-300 disabled:cursor-not-allowed"
+            >
+              {processing ? (
+                <span className="flex items-center justify-center gap-2">
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                  Traitement en cours...
+                </span>
+              ) : (
+                '💰 Payer 5000 FCFA'
+              )}
+            </button>
+          </div>
 
           {/* Info Box */}
-          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mt-6">
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mt-6">
+            <p className="text-yellow-800 text-sm text-center">
+              <strong>Mode simulation :</strong> Le paiement est simulé automatiquement (pas besoin d'API réelle)
+            </p>
+          </div>
+
+          {/* Security Info */}
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mt-3">
             <p className="text-gray-600 text-sm text-center">
               🔒 Paiement sécurisé. Vos données sont protégées.
             </p>

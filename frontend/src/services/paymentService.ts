@@ -19,7 +19,15 @@ export interface InitiatePaymentData {
 
 export const paymentService = {
   /**
-   * Initier un paiement
+   * Créer un paiement simulé (sans API de paiement)
+   */
+  async createSimple(data: InitiatePaymentData): Promise<Payment> {
+    const response = await api.post('/payments/create-simple', data);
+    return response.data.data;
+  },
+
+  /**
+   * Initier un paiement (avec CinetPay - nécessite clés API)
    */
   async initiate(data: InitiatePaymentData): Promise<Payment> {
     const response = await api.post('/payments/initiate', data);

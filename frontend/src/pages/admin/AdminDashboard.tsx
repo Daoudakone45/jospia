@@ -30,6 +30,13 @@ const AdminDashboard: React.FC = () => {
       icon: '🛏️',
       link: '/admin/assignments',
       color: 'orange'
+    },
+    {
+      title: 'Statistiques',
+      description: 'Tableaux de bord et rapports',
+      icon: '📊',
+      link: '/admin/stats',
+      color: 'indigo'
     }
   ];
 
@@ -59,11 +66,10 @@ const AdminDashboard: React.FC = () => {
         </div>
 
         {/* Info Box */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-          <h3 className="font-bold text-blue-900 mb-2">ℹ️ En développement</h3>
-          <p className="text-blue-800 text-sm">
-            Le tableau de bord administrateur avec statistiques détaillées est en cours de développement.
-            Les pages de gestion des inscriptions, paiements et dortoirs sont disponibles ci-dessus.
+        <div className="bg-green-50 border border-green-200 rounded-lg p-6">
+          <h3 className="font-bold text-green-900 mb-2">✅ Système opérationnel</h3>
+          <p className="text-green-800 text-sm">
+            Le système JOSPIA 2025-2026 est opérationnel. Utilisez les cartes ci-dessus pour accéder aux différentes fonctionnalités d'administration.
           </p>
         </div>
       </div>

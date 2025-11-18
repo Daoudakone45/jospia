@@ -166,7 +166,7 @@ const InscriptionPage: React.FC = () => {
       setValidationErrors({}); // Clear errors on success
       
       // Rediriger vers la page de paiement avec l'ID de l'inscription
-      navigate(`/payment?inscription_id=${response.id}`);
+      navigate(`/payment/${response.id}`);
     } catch (error: any) {
       console.error('Erreur inscription:', error);
       

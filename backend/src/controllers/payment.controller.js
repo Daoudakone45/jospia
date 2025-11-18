@@ -3,6 +3,7 @@ const axios = require('axios');
 const { v4: uuidv4 } = require('uuid');
 const { paymentInitiateSchema } = require('../utils/validation');
 const { sendPaymentReceiptEmail } = require('../utils/emailService');
+const { generatePaymentReceipt } = require('../utils/pdfService');
 const dormitoryService = require('../services/dormitoryService');
 
 const initiatePayment = async (req, res, next) => {
@@ -418,10 +419,168 @@ const getAllPayments = async (req, res, next) => {
 // Note: L'attribution automatique des dortoirs est gérée par dormitoryService
 // Voir: src/services/dormitoryService.js
 
+// Simulate payment success (for development/testing)
+const simulatePaymentSuccess = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    // Get payment
+    const { data: payment, error: paymentError } = await supabase
+      .from('payments')
+      .select('*, inscriptions(*)')
+      .eq('id', id)
+      .single();
+
+    if (paymentError || !payment) {
+      return res.status(404).json({
+        success: false,
+        message: 'Payment not found'
+      });
+    }
+
+    // Check if payment belongs to user (unless admin)
+    if (!req.user.is_admin && payment.inscriptions.user_id !== req.user.id) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied'
+      });
+    }
+
+    // Update payment to success
+    const { data: updatedPayment, error: updateError } = await supabase
+      .from('payments')
+      .update({
+        status: 'success',
+        payment_date: new Date().toISOString()
+      })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (updateError) {
+      return res.status(400).json({
+        success: false,
+        message: updateError.message
+      });
+    }
+
+    // Update inscription status to confirmed
+    await supabase
+      .from('inscriptions')
+      .update({ status: 'confirmed' })
+      .eq('id', payment.inscription_id);
+
+    // Auto-assign dormitory
+    try {
+      const assignment = await dormitoryService.autoAssignDormitory(payment.inscription_id);
+      console.log('✅ Dortoir attribué automatiquement:', assignment);
+    } catch (assignError) {
+      console.error('❌ Erreur attribution dortoir:', assignError);
+      // Continue even if assignment fails
+    }
+
+    res.json({
+      success: true,
+      message: 'Payment simulated successfully',
+      data: updatedPayment
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Download payment receipt as PDF
+const downloadReceipt = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    // Get payment with all related data
+    const { data: payment, error: paymentError } = await supabase
+      .from('payments')
+      .select(`
+        *,
+        inscriptions (
+          id,
+          first_name,
+          last_name,
+          contact_phone,
+          section,
+          gender,
+          user_id
+        )
+      `)
+      .eq('id', id)
+      .single();
+
+    if (paymentError || !payment) {
+      return res.status(404).json({
+        success: false,
+        message: 'Payment not found'
+      });
+    }
+
+    // Check if payment belongs to user (unless admin)
+    if (!req.user.is_admin && payment.inscriptions.user_id !== req.user.id) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied'
+      });
+    }
+
+    // Payment must be successful
+    if (payment.status !== 'success') {
+      return res.status(400).json({
+        success: false,
+        message: 'Receipt only available for successful payments'
+      });
+    }
+
+    // Get user data
+    const { data: user } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', payment.inscriptions.user_id)
+      .single();
+
+    // Generate receipt number if not exists
+    const receiptNumber = payment.receipt_number || `JOSPIA-${Date.now()}-${payment.id.substring(0, 8).toUpperCase()}`;
+
+    // Update payment with receipt number if it doesn't have one
+    if (!payment.receipt_number) {
+      await supabase
+        .from('payments')
+        .update({ receipt_number: receiptNumber })
+        .eq('id', id);
+    }
+
+    // Generate PDF
+    const pdfBuffer = await generatePaymentReceipt({
+      payment,
+      inscription: payment.inscriptions,
+      user,
+      receiptNumber
+    });
+
+    // Set headers for PDF download
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename=Recu-JOSPIA-${receiptNumber}.pdf`);
+    res.setHeader('Content-Length', pdfBuffer.length);
+
+    // Send PDF
+    res.send(pdfBuffer);
+
+  } catch (error) {
+    console.error('Error generating receipt:', error);
+    next(error);
+  }
+};
+
 module.exports = {
   initiatePayment,
   paymentCallback,
   getPayment,
   checkPaymentStatus,
-  getAllPayments
+  getAllPayments,
+  simulatePaymentSuccess,
+  downloadReceipt
 };

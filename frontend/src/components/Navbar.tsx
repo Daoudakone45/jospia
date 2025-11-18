@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
+import Logo from './Logo';
 
 const Navbar: React.FC = () => {
   const { user, isAuthenticated, logout } = useAuthStore();
@@ -16,12 +17,8 @@ const Navbar: React.FC = () => {
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
-          <Link to="/" className="flex items-center gap-3">
-            <div className="text-3xl">🕌</div>
-            <div>
-              <div className="text-xl font-bold">JOSPIA</div>
-              <div className="text-xs text-green-200">2025-2026</div>
-            </div>
+          <Link to="/" className="flex items-center">
+            <Logo size="small" showText={true} className="text-white" />
           </Link>
 
           {/* Navigation */}

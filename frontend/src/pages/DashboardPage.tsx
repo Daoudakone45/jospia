@@ -9,6 +9,7 @@ interface Inscription {
 }
 
 interface Payment {
+  id: string;
   status: string;
 }
 
@@ -114,12 +115,16 @@ const DashboardPage: React.FC = () => {
                       Payer →
                     </Link>
                   )}
-                  {payment && (
-                    <span className={`text-sm font-medium ${
-                      payment.status === 'success' ? 'text-green-600' : 'text-yellow-600'
-                    }`}>
-                      {payment.status === 'success' ? '✓ Validé' : '⏳ En attente'}
-                    </span>
+                  {payment?.status === 'success' && (
+                    <Link
+                      to={`/receipt/${payment.id}`}
+                      className="text-green-600 hover:text-green-700 font-medium text-sm flex items-center gap-1"
+                    >
+                      📄 Télécharger le reçu →
+                    </Link>
+                  )}
+                  {payment?.status === 'pending' && (
+                    <span className="text-yellow-600 text-sm font-medium">⏳ En attente</span>
                   )}
                 </div>
 

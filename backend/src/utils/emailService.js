@@ -1,6 +1,9 @@
 const nodemailer = require('nodemailer');
 
-const transporter = nodemailer.createTransport({
+// Mode développement : désactiver l'envoi réel d'emails
+const isDevelopment = process.env.NODE_ENV === 'development';
+
+const transporter = isDevelopment ? null : nodemailer.createTransport({
   host: process.env.SMTP_HOST,
   port: process.env.SMTP_PORT,
   secure: process.env.SMTP_SECURE === 'true',
@@ -12,6 +15,15 @@ const transporter = nodemailer.createTransport({
 
 const sendEmail = async ({ to, subject, html, attachments = [] }) => {
   try {
+    // En développement, logger au lieu d'envoyer
+    if (isDevelopment) {
+      console.log('📧 [DEV MODE] Email simulé:');
+      console.log('   To:', to);
+      console.log('   Subject:', subject);
+      console.log('   (Contenu HTML non affiché)');
+      return { success: true, messageId: 'dev-mode-' + Date.now() };
+    }
+
     const mailOptions = {
       from: process.env.EMAIL_FROM,
       to,
@@ -21,11 +33,12 @@ const sendEmail = async ({ to, subject, html, attachments = [] }) => {
     };
 
     const info = await transporter.sendMail(mailOptions);
-    console.log('Email sent:', info.messageId);
+    console.log('✅ Email envoyé:', info.messageId);
     return { success: true, messageId: info.messageId };
   } catch (error) {
-    console.error('Email error:', error);
-    throw error;
+    console.error('❌ Email error:', error.message);
+    // Ne pas bloquer l'opération si l'email échoue
+    return { success: false, error: error.message };
   }
 };
 

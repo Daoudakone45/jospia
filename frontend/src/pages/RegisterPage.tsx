@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import toast from 'react-hot-toast';
+import Logo from '../components/Logo';
 
 const RegisterPage: React.FC = () => {
   const navigate = useNavigate();
@@ -54,6 +55,9 @@ const RegisterPage: React.FC = () => {
       <div className="max-w-md w-full">
         <div className="bg-white rounded-lg shadow-md p-8">
           <div className="text-center mb-8">
+            <div className="flex justify-center mb-6">
+              <Logo size="large" showText={true} className="text-green-700" />
+            </div>
             <h2 className="text-3xl font-bold text-gray-900">Créer un compte</h2>
             <p className="mt-2 text-gray-600">
               Commencez votre inscription au séminaire

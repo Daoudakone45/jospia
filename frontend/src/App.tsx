@@ -16,6 +16,7 @@ import AdminInscriptions from './pages/admin/AdminInscriptions'
 import AdminPayments from './pages/admin/AdminPayments'
 import AdminDormitories from './pages/admin/AdminDormitories'
 import AdminAssignments from './pages/admin/AdminAssignments'
+import AdminStats from './pages/admin/AdminStats'
 
 // Components
 import ProtectedRoute from './components/ProtectedRoute'
@@ -67,7 +68,7 @@ function App() {
             }
           />
           <Route
-            path="/receipt/:receiptId"
+            path="/receipt/:paymentId"
             element={
               <ProtectedRoute>
                 <ReceiptPage />
@@ -121,6 +122,14 @@ function App() {
             element={
               <AdminRoute>
                 <AdminAssignments />
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/stats"
+            element={
+              <AdminRoute>
+                <AdminStats />
               </AdminRoute>
             }
           />

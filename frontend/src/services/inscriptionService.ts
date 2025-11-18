@@ -26,7 +26,7 @@ export const inscriptionService = {
    */
   async create(data: InscriptionData): Promise<InscriptionResponse> {
     const response = await api.post('/inscriptions', data);
-    return response.data;
+    return response.data.data;
   },
 
   /**
@@ -34,7 +34,7 @@ export const inscriptionService = {
    */
   async getMyInscription(): Promise<InscriptionResponse | null> {
     const response = await api.get('/inscriptions/my-inscription');
-    return response.data;
+    return response.data.data;
   },
 
   /**
@@ -47,6 +47,14 @@ export const inscriptionService = {
   }): Promise<InscriptionResponse[]> {
     const params = new URLSearchParams(filters as Record<string, string>);
     const response = await api.get(`/inscriptions?${params}`);
+    return response.data.data;
+  },
+
+  /**
+   * Récupérer une inscription par ID
+   */
+  async getById(id: string): Promise<any> {
+    const response = await api.get(`/inscriptions/${id}`);
     return response.data;
   },
 

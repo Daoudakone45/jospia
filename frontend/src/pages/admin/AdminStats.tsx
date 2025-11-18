@@ -50,6 +50,58 @@ const AdminStats: React.FC = () => {
     }
   };
 
+  const handleExportExcel = async () => {
+    try {
+      toast.loading('Génération du fichier Excel...');
+      const response = await api.get('/stats/export/excel', {
+        responseType: 'blob'
+      });
+      
+      // Create download link
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `jospia_export_${new Date().toISOString().split('T')[0]}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      
+      toast.dismiss();
+      toast.success('Fichier Excel téléchargé avec succès!');
+    } catch (error: any) {
+      toast.dismiss();
+      console.error('Erreur export Excel:', error);
+      toast.error('Erreur lors de l\'export Excel');
+    }
+  };
+
+  const handleExportPDF = async () => {
+    try {
+      toast.loading('Génération du fichier PDF...');
+      const response = await api.get('/stats/export/pdf', {
+        responseType: 'blob'
+      });
+      
+      // Create download link
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `jospia_rapport_${new Date().toISOString().split('T')[0]}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      
+      toast.dismiss();
+      toast.success('Fichier PDF téléchargé avec succès!');
+    } catch (error: any) {
+      toast.dismiss();
+      console.error('Erreur export PDF:', error);
+      toast.error('Erreur lors de l\'export PDF');
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -273,14 +325,14 @@ const AdminStats: React.FC = () => {
         {/* Export buttons */}
         <div className="mt-8 flex justify-center gap-4">
           <button
-            onClick={() => toast.success('Export Excel bientôt disponible')}
-            className="bg-green-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-green-700 transition flex items-center gap-2"
+            onClick={handleExportExcel}
+            className="bg-green-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-green-700 transition flex items-center gap-2 shadow-md"
           >
             📊 Exporter Excel
           </button>
           <button
-            onClick={() => toast.success('Export PDF bientôt disponible')}
-            className="bg-red-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-red-700 transition flex items-center gap-2"
+            onClick={handleExportPDF}
+            className="bg-red-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-red-700 transition flex items-center gap-2 shadow-md"
           >
             📄 Exporter PDF
           </button>

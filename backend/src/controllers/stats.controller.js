@@ -194,12 +194,14 @@ const getRevenueStats = async (req, res, next) => {
 
 const exportToExcel = async (req, res, next) => {
   try {
+    const ExcelJS = require('exceljs');
+    
     const { data: inscriptions, error } = await supabase
       .from('inscriptions')
       .select(`
         *,
         users(email),
-        payments(status, amount, payment_date),
+        payments(status, amount, payment_date, payment_method),
         dormitory_assignments(room_number, bed_number, dormitories(name))
       `);
 
@@ -210,49 +212,184 @@ const exportToExcel = async (req, res, next) => {
       });
     }
 
-    // Convert to CSV format
-    const headers = [
-      'ID',
-      'Prénom',
-      'Nom',
-      'Email',
-      'Section',
-      'Genre',
-      'Âge',
-      'Contact',
-      'Résidence',
-      'Statut',
-      'Paiement',
-      'Dortoir',
-      'Chambre',
-      'Lit'
+    // Create workbook
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = 'JOSPIA';
+    workbook.created = new Date();
+
+    // ===== SHEET 1: Liste des participants =====
+    const participantsSheet = workbook.addWorksheet('Participants', {
+      pageSetup: { paperSize: 9, orientation: 'landscape' }
+    });
+
+    // Define columns
+    participantsSheet.columns = [
+      { header: 'N°', key: 'number', width: 5 },
+      { header: 'Prénom', key: 'firstName', width: 15 },
+      { header: 'Nom', key: 'lastName', width: 15 },
+      { header: 'Genre', key: 'gender', width: 10 },
+      { header: 'Âge', key: 'age', width: 7 },
+      { header: 'Section', key: 'section', width: 15 },
+      { header: 'Contact', key: 'phone', width: 15 },
+      { header: 'Email', key: 'email', width: 25 },
+      { header: 'Résidence', key: 'residence', width: 20 },
+      { header: 'Statut', key: 'status', width: 12 },
+      { header: 'Dortoir', key: 'dormitory', width: 15 },
+      { header: 'Chambre', key: 'room', width: 10 },
+      { header: 'Lit', key: 'bed', width: 7 },
+      { header: 'Paiement', key: 'paymentStatus', width: 12 },
+      { header: 'Montant', key: 'amount', width: 12 }
     ];
 
-    const rows = inscriptions.map(ins => [
-      ins.id,
-      ins.first_name,
-      ins.last_name,
-      ins.users?.email || '',
-      ins.section,
-      ins.gender === 'male' ? 'Homme' : 'Femme',
-      ins.age,
-      ins.contact_phone,
-      ins.residence_location,
-      ins.status,
-      ins.payments?.[0]?.status || 'N/A',
-      ins.dormitory_assignments?.[0]?.dormitories?.name || 'Non assigné',
-      ins.dormitory_assignments?.[0]?.room_number || '',
-      ins.dormitory_assignments?.[0]?.bed_number || ''
-    ]);
+    // Style header row
+    participantsSheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    participantsSheet.getRow(1).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FF2d5016' } // Green JOSPIA
+    };
+    participantsSheet.getRow(1).alignment = { vertical: 'middle', horizontal: 'center' };
+    participantsSheet.getRow(1).height = 25;
 
-    const csv = [headers, ...rows]
-      .map(row => row.map(cell => `"${cell}"`).join(','))
-      .join('\n');
+    // Add data rows
+    inscriptions.forEach((ins, index) => {
+      const payment = ins.payments?.[0];
+      const assignment = ins.dormitory_assignments?.[0];
+      
+      participantsSheet.addRow({
+        number: index + 1,
+        firstName: ins.first_name,
+        lastName: ins.last_name,
+        gender: ins.gender === 'male' ? 'Homme' : 'Femme',
+        age: ins.age,
+        section: ins.section,
+        phone: ins.contact_phone,
+        email: ins.users?.email || '',
+        residence: ins.residence_location,
+        status: ins.status === 'confirmed' ? 'Confirmé' : ins.status,
+        dormitory: assignment?.dormitories?.name || 'Non assigné',
+        room: assignment?.room_number || '',
+        bed: assignment?.bed_number || '',
+        paymentStatus: payment?.status === 'success' ? 'Payé' : payment?.status || 'En attente',
+        amount: payment?.amount || 0
+      });
+    });
 
-    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    res.setHeader('Content-Disposition', 'attachment; filename=inscriptions_jospia.csv');
-    res.send('\uFEFF' + csv); // UTF-8 BOM for Excel
+    // Apply borders and alternating colors
+    participantsSheet.eachRow((row, rowNumber) => {
+      row.eachCell((cell) => {
+        cell.border = {
+          top: { style: 'thin' },
+          left: { style: 'thin' },
+          bottom: { style: 'thin' },
+          right: { style: 'thin' }
+        };
+      });
+
+      if (rowNumber > 1 && rowNumber % 2 === 0) {
+        row.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFF0F0F0' }
+        };
+      }
+    });
+
+    // Format amount column as currency
+    participantsSheet.getColumn('amount').numFmt = '#,##0 "FCFA"';
+
+    // ===== SHEET 2: Statistiques =====
+    const statsSheet = workbook.addWorksheet('Statistiques');
+    
+    // Calculate stats
+    const confirmedInscriptions = inscriptions.filter(i => i.status === 'confirmed');
+    const paidCount = inscriptions.filter(i => i.payments?.[0]?.status === 'success').length;
+    const totalRevenue = inscriptions.reduce((sum, i) => sum + (i.payments?.[0]?.amount || 0), 0);
+    const maleCount = confirmedInscriptions.filter(i => i.gender === 'male').length;
+    const femaleCount = confirmedInscriptions.filter(i => i.gender === 'female').length;
+    const assignedCount = inscriptions.filter(i => i.dormitory_assignments?.[0]).length;
+
+    // Section distribution
+    const sectionStats = confirmedInscriptions.reduce((acc, i) => {
+      acc[i.section] = (acc[i.section] || 0) + 1;
+      return acc;
+    }, {});
+
+    // Add title
+    statsSheet.mergeCells('A1:B1');
+    statsSheet.getCell('A1').value = 'JOSPIA - Statistiques du Séminaire';
+    statsSheet.getCell('A1').font = { size: 16, bold: true, color: { argb: 'FF2d5016' } };
+    statsSheet.getCell('A1').alignment = { horizontal: 'center' };
+    statsSheet.getRow(1).height = 30;
+
+    // Add date
+    statsSheet.mergeCells('A2:B2');
+    statsSheet.getCell('A2').value = `Généré le ${new Date().toLocaleDateString('fr-FR')} à ${new Date().toLocaleTimeString('fr-FR')}`;
+    statsSheet.getCell('A2').alignment = { horizontal: 'center' };
+    statsSheet.getCell('A2').font = { italic: true };
+    
+    let currentRow = 4;
+
+    // General stats
+    statsSheet.getCell(`A${currentRow}`).value = 'STATISTIQUES GÉNÉRALES';
+    statsSheet.getCell(`A${currentRow}`).font = { bold: true, size: 12 };
+    statsSheet.getCell(`A${currentRow}`).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFE0E0E0' }
+    };
+    currentRow += 2;
+
+    const generalStats = [
+      ['Total des inscriptions', inscriptions.length],
+      ['Inscriptions confirmées', confirmedInscriptions.length],
+      ['Paiements réussis', paidCount],
+      ['Revenu total', `${totalRevenue.toLocaleString('fr-FR')} FCFA`],
+      ['Participants hommes', maleCount],
+      ['Participants femmes', femaleCount],
+      ['Dortoirs assignés', assignedCount]
+    ];
+
+    generalStats.forEach(([label, value]) => {
+      statsSheet.getCell(`A${currentRow}`).value = label;
+      statsSheet.getCell(`A${currentRow}`).font = { bold: true };
+      statsSheet.getCell(`B${currentRow}`).value = value;
+      statsSheet.getCell(`B${currentRow}`).alignment = { horizontal: 'right' };
+      currentRow++;
+    });
+
+    currentRow += 2;
+
+    // Section distribution
+    statsSheet.getCell(`A${currentRow}`).value = 'RÉPARTITION PAR SECTION';
+    statsSheet.getCell(`A${currentRow}`).font = { bold: true, size: 12 };
+    statsSheet.getCell(`A${currentRow}`).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFE0E0E0' }
+    };
+    currentRow += 2;
+
+    Object.entries(sectionStats).forEach(([section, count]) => {
+      statsSheet.getCell(`A${currentRow}`).value = section;
+      statsSheet.getCell(`A${currentRow}`).font = { bold: true };
+      statsSheet.getCell(`B${currentRow}`).value = count;
+      statsSheet.getCell(`B${currentRow}`).alignment = { horizontal: 'right' };
+      currentRow++;
+    });
+
+    // Column widths
+    statsSheet.getColumn('A').width = 30;
+    statsSheet.getColumn('B').width = 20;
+
+    // ===== Send file =====
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename=jospia_export_${new Date().toISOString().split('T')[0]}.xlsx`);
+
+    await workbook.xlsx.write(res);
+    res.end();
   } catch (error) {
+    console.error('Error in exportToExcel:', error);
     next(error);
   }
 };

@@ -170,6 +170,20 @@ const generatePaymentReceipt = async (paymentData) => {
       doc.fillColor('#333333')
          .text(inscription.gender === 'male' ? 'Masculin' : 'Féminin', 200, y);
 
+      y += 20;
+
+      // Dortoir assigné
+      if (paymentData.dormitory) {
+        doc.fillColor('#666666')
+           .text('Dortoir assigné:', 50, y);
+        
+        doc.fillColor('#2d5016')
+           .font('Helvetica-Bold')
+           .text(paymentData.dormitory.name, 200, y);
+        
+        doc.font('Helvetica');
+      }
+
       // --- DÉTAILS DU MONTANT ---
       y += 40;
 
@@ -216,9 +230,9 @@ const generatePaymentReceipt = async (paymentData) => {
 
       // Convertir base64 en buffer
       const qrBuffer = Buffer.from(qrCodeDataUrl.split(',')[1], 'base64');
-      doc.image(qrBuffer, 220, y, { width: 120, height: 120 });
+      doc.image(qrBuffer, 240, y, { width: 100, height: 100 });
 
-      y += 130;
+      y += 110;
 
       doc.fontSize(8)
          .fillColor('#999999')
@@ -297,7 +311,7 @@ const generateParticipantBadge = async (participantData) => {
 
       doc.fontSize(10)
          .fillColor('#666666')
-         .text('20-27 Décembre 2025', 0, 55, { align: 'center', width: 283.46 });
+         .text('28 Décembre 2025 au 03 Janvier 2026', 0, 55, { align: 'center', width: 283.46 });
 
       // Photo placeholder
       doc.circle(141.73, 120, 40)

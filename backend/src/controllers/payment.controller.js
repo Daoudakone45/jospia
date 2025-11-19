@@ -555,6 +555,13 @@ const downloadReceipt = async (req, res, next) => {
       .eq('id', payment.inscriptions.user_id)
       .single();
 
+    // Get dormitory assignment if exists
+    const { data: dormitoryAssignment } = await supabase
+      .from('dormitory_assignments')
+      .select('*, dormitories(*)')
+      .eq('inscription_id', payment.inscriptions.id)
+      .single();
+
     // Generate receipt number if not exists
     const receiptNumber = payment.receipt_number || `JOSPIA-${Date.now()}-${payment.id.substring(0, 8).toUpperCase()}`;
 
@@ -571,7 +578,8 @@ const downloadReceipt = async (req, res, next) => {
       payment,
       inscription: payment.inscriptions,
       user,
-      receiptNumber
+      receiptNumber,
+      dormitory: dormitoryAssignment?.dormitories || null
     });
 
     // Set headers for PDF download

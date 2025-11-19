@@ -43,7 +43,7 @@ const generatePaymentReceipt = async (paymentData) => {
       doc.fontSize(10)
          .fillColor('#666666')
          .text('Journées Spirituelles Islamiques d\'Anyama', 350, 80, { align: 'right' })
-         .text('20-27 Décembre 2025', 350, 95, { align: 'right' })
+         .text('28 Décembre 2025 au 03 Janvier 2026', 350, 95, { align: 'right' })
          .text('Anyama, Côte d\'Ivoire', 350, 110, { align: 'right' });
 
       // Ligne de séparation

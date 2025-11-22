@@ -1,6 +1,7 @@
 const supabase = require('../config/supabase');
 const { inscriptionSchema } = require('../utils/validation');
 const { sendConfirmationEmail } = require('../utils/emailService');
+const dormitoryService = require('../services/dormitoryService');
 
 const createInscription = async (req, res, next) => {
   try {
@@ -205,6 +206,69 @@ const deleteInscription = async (req, res, next) => {
   try {
     const { id } = req.params;
 
+    console.log('🗑️  SUPPRESSION INSCRIPTION:', id);
+
+    // 1. Vérifier que l'inscription existe
+    const { data: inscription, error: fetchError } = await supabase
+      .from('inscriptions')
+      .select('id, first_name, last_name')
+      .eq('id', id)
+      .single();
+
+    if (fetchError || !inscription) {
+      return res.status(404).json({
+        success: false,
+        message: 'Inscription not found'
+      });
+    }
+
+    console.log(`   Participant: ${inscription.first_name} ${inscription.last_name}`);
+
+    // 2. Vérifier et libérer le dortoir assigné
+    const { data: assignment } = await supabase
+      .from('dormitory_assignments')
+      .select('id, dormitory_id, dormitories(name)')
+      .eq('inscription_id', id)
+      .single();
+
+    if (assignment) {
+      console.log(`   🏠 Dortoir assigné: ${assignment.dormitories?.name}`);
+      console.log('   🔄 Libération du dortoir...');
+      
+      const unassignResult = await dormitoryService.unassignDormitory(assignment.id);
+      
+      if (unassignResult.success) {
+        console.log('   ✅ Dortoir libéré avec succès');
+      } else {
+        console.log('   ⚠️  Erreur lors de la libération du dortoir:', unassignResult.message);
+      }
+    } else {
+      console.log('   ℹ️  Aucun dortoir assigné');
+    }
+
+    // 3. Supprimer les paiements associés (si nécessaire)
+    const { data: payments } = await supabase
+      .from('payments')
+      .select('id')
+      .eq('inscription_id', id);
+
+    if (payments && payments.length > 0) {
+      console.log(`   💰 Suppression de ${payments.length} paiement(s)...`);
+      
+      const { error: paymentDeleteError } = await supabase
+        .from('payments')
+        .delete()
+        .eq('inscription_id', id);
+
+      if (paymentDeleteError) {
+        console.error('   ⚠️  Erreur suppression paiements:', paymentDeleteError.message);
+      } else {
+        console.log('   ✅ Paiements supprimés');
+      }
+    }
+
+    // 4. Supprimer l'inscription
+    console.log('   🗑️  Suppression de l\'inscription...');
     const { data, error } = await supabase
       .from('inscriptions')
       .delete()
@@ -213,17 +277,21 @@ const deleteInscription = async (req, res, next) => {
       .single();
 
     if (error || !data) {
-      return res.status(404).json({
+      console.error('   ❌ Erreur suppression:', error?.message);
+      return res.status(500).json({
         success: false,
-        message: 'Inscription not found'
+        message: 'Failed to delete inscription'
       });
     }
 
+    console.log('✅ SUPPRESSION RÉUSSIE\n');
+
     res.json({
       success: true,
-      message: 'Inscription deleted successfully'
+      message: 'Inscription deleted successfully, dormitory freed'
     });
   } catch (error) {
+    console.error('❌ ERREUR SUPPRESSION:', error);
     next(error);
   }
 };

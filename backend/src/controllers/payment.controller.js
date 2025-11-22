@@ -780,6 +780,153 @@ const getPaymentByInscription = async (req, res, next) => {
   }
 };
 
+/**
+ * Valider manuellement un paiement en espèces (ADMIN ONLY)
+ */
+const validateCashPayment = async (req, res, next) => {
+  try {
+    const { inscriptionId } = req.params;
+    const { amount, notes } = req.body;
+
+    // Verify admin role
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. Admin only.'
+      });
+    }
+
+    // Get inscription
+    const { data: inscription, error: inscriptionError } = await supabase
+      .from('inscriptions')
+      .select('*')
+      .eq('id', inscriptionId)
+      .single();
+
+    if (inscriptionError || !inscription) {
+      return res.status(404).json({
+        success: false,
+        message: 'Inscription not found'
+      });
+    }
+
+    // Check if already paid
+    const { data: existingPayment } = await supabase
+      .from('payments')
+      .select('*')
+      .eq('inscription_id', inscriptionId)
+      .eq('status', 'success')
+      .single();
+
+    if (existingPayment) {
+      return res.status(400).json({
+        success: false,
+        message: 'Payment already exists for this inscription'
+      });
+    }
+
+    const paymentAmount = amount || 5000; // Default seminar price
+    const referenceCode = `CASH-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+
+    console.log('💵 VALIDATION PAIEMENT ESPÈCES PAR ADMIN');
+    console.log('   Inscription ID:', inscriptionId);
+    console.log('   Montant:', paymentAmount, 'FCFA');
+    console.log('   Admin:', req.user.email);
+    console.log('   Notes:', notes || 'Aucune');
+
+    // Create payment record
+    const { data: payment, error: paymentError } = await supabase
+      .from('payments')
+      .insert([{
+        inscription_id: inscriptionId,
+        amount: paymentAmount,
+        payment_method: 'cash',
+        status: 'success',
+        reference_code: referenceCode,
+        payment_date: new Date().toISOString(),
+        transaction_id: referenceCode,
+        notes: notes || `Paiement en espèces validé par ${req.user.email}`
+      }])
+      .select()
+      .single();
+
+    if (paymentError) {
+      console.error('❌ Erreur création paiement:', paymentError);
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to create payment record',
+        error: paymentError.message
+      });
+    }
+
+    console.log('✅ Paiement créé:', payment.id);
+
+    // Update inscription status to confirmed
+    const { error: updateError } = await supabase
+      .from('inscriptions')
+      .update({ status: 'confirmed' })
+      .eq('id', inscriptionId);
+
+    if (updateError) {
+      console.error('⚠️ Erreur mise à jour inscription:', updateError);
+    } else {
+      console.log('✅ Inscription confirmée');
+    }
+
+    // Auto-assign dormitory
+    console.log('🏠 DÉMARRAGE assignation automatique dortoir...');
+    console.log('   Inscription ID:', inscriptionId);
+    console.log('   Genre:', inscription.gender);
+
+    const assignmentResult = await dormitoryService.assignDormitory(
+      inscriptionId,
+      inscription.gender
+    );
+
+    console.log('✅ RÉSULTAT assignation:', assignmentResult);
+    if (assignmentResult.success) {
+      console.log(`✅ Dortoir assigné: ${assignmentResult.dormitory?.name}`);
+    } else {
+      console.log('⚠️ Aucun dortoir disponible ou erreur:', assignmentResult.message);
+    }
+
+    // Get user for email
+    const { data: user } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', inscription.user_id)
+      .single();
+
+    // Send email notification (if configured)
+    if (user) {
+      try {
+        await sendPaymentReceiptEmail(
+          user,
+          inscription,
+          payment,
+          null
+        );
+        console.log('✅ Email envoyé');
+      } catch (emailError) {
+        console.error('⚠️ Erreur envoi email:', emailError.message);
+      }
+    }
+
+    res.json({
+      success: true,
+      message: 'Cash payment validated successfully',
+      data: {
+        payment,
+        dormitory: assignmentResult.success ? assignmentResult.dormitory : null
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Erreur validation paiement espèces:', error);
+    next(error);
+  }
+};
+
 module.exports = {
   initiatePayment,
   paymentCallback,
@@ -789,5 +936,6 @@ module.exports = {
   getAllPayments,
   simulatePaymentSuccess,
   downloadReceipt,
-  createSimplePayment
+  createSimplePayment,
+  validateCashPayment
 };

@@ -15,5 +15,6 @@ router.get('/:id/receipt', authenticate, paymentController.downloadReceipt);
 
 // Admin routes
 router.get('/', authenticate, authorizeAdmin, paymentController.getAllPayments);
+router.post('/validate-cash/:inscriptionId', authenticate, authorizeAdmin, paymentController.validateCashPayment);
 
 module.exports = router;

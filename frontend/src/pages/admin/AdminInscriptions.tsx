@@ -48,6 +48,8 @@ const AdminInscriptions: React.FC = () => {
   const [showDetails, setShowDetails] = useState(false);
   const [payment, setPayment] = useState<Payment | null>(null);
   const [dormitory, setDormitory] = useState<DormitoryAssignment | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletingInscription, setDeletingInscription] = useState(false);
 
   // Filtres
   const [statusFilter, setStatusFilter] = useState('all');
@@ -126,6 +128,32 @@ const AdminInscriptions: React.FC = () => {
     setSelectedInscription(null);
     setPayment(null);
     setDormitory(null);
+  };
+
+  const handleDeleteInscription = async () => {
+    if (!selectedInscription) return;
+
+    setDeletingInscription(true);
+    try {
+      await api.delete(`/inscriptions/${selectedInscription.id}`);
+
+      toast.success(`Inscription de ${selectedInscription.first_name} ${selectedInscription.last_name} supprimée avec succès !`);
+      
+      // Refresh inscriptions list
+      await fetchInscriptions();
+      
+      // Close modals
+      setShowDeleteModal(false);
+      setShowDetails(false);
+      setSelectedInscription(null);
+      setPayment(null);
+      setDormitory(null);
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Erreur lors de la suppression');
+      console.error(error);
+    } finally {
+      setDeletingInscription(false);
+    }
   };
 
   const getStatusBadge = (status: string) => {
@@ -305,12 +333,23 @@ const AdminInscriptions: React.FC = () => {
                           {new Date(inscription.created_at).toLocaleDateString('fr-FR')}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                          <button
-                            onClick={() => viewDetails(inscription)}
-                            className="text-green-600 hover:text-green-900"
-                          >
-                            📄 Détails
-                          </button>
+                          <div className="flex items-center gap-3">
+                            <button
+                              onClick={() => viewDetails(inscription)}
+                              className="text-green-600 hover:text-green-900"
+                            >
+                              📄 Détails
+                            </button>
+                            <button
+                              onClick={() => {
+                                setSelectedInscription(inscription);
+                                setShowDeleteModal(true);
+                              }}
+                              className="text-red-600 hover:text-red-900"
+                            >
+                              🗑️ Supprimer
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -466,13 +505,110 @@ const AdminInscriptions: React.FC = () => {
               </div>
             </div>
 
-            <div className="bg-gray-50 px-6 py-4 flex justify-end">
+            <div className="bg-gray-50 px-6 py-4 flex justify-between">
+              <button
+                onClick={() => {
+                  setShowDeleteModal(true);
+                }}
+                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 flex items-center gap-2"
+              >
+                🗑️ Supprimer cette inscription
+              </button>
               <button
                 onClick={closeDetails}
                 className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300"
               >
                 Fermer
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal confirmation suppression */}
+      {showDeleteModal && selectedInscription && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full">
+            <div className="bg-red-600 text-white px-6 py-4 flex justify-between items-center">
+              <h2 className="text-xl font-bold">⚠️ Confirmation de suppression</h2>
+              <button 
+                onClick={() => setShowDeleteModal(false)} 
+                className="text-white hover:text-gray-200 text-2xl"
+                disabled={deletingInscription}
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="p-6">
+              <div className="mb-4 bg-yellow-50 border-l-4 border-yellow-400 p-4">
+                <div className="flex">
+                  <div className="flex-shrink-0">
+                    <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <div className="ml-3">
+                    <p className="text-sm text-yellow-700">
+                      <strong>Action irréversible !</strong> Cette suppression entraînera :
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mb-4 space-y-2 text-sm">
+                <div className="flex items-start">
+                  <span className="text-red-600 mr-2">•</span>
+                  <span>Suppression de l'inscription de <strong>{selectedInscription.first_name} {selectedInscription.last_name}</strong></span>
+                </div>
+                <div className="flex items-start">
+                  <span className="text-red-600 mr-2">•</span>
+                  <span>Suppression des paiements associés</span>
+                </div>
+                <div className="flex items-start">
+                  <span className="text-green-600 mr-2">•</span>
+                  <span>Libération automatique du dortoir assigné</span>
+                </div>
+                <div className="flex items-start">
+                  <span className="text-blue-600 mr-2">•</span>
+                  <span>Mise à jour automatique des statistiques</span>
+                </div>
+              </div>
+
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 mb-4">
+                <p className="text-sm text-gray-700">
+                  <strong>Participant :</strong> {selectedInscription.first_name} {selectedInscription.last_name}
+                </p>
+                <p className="text-sm text-gray-700 mt-1">
+                  <strong>Email :</strong> {selectedInscription.users?.email}
+                </p>
+                {dormitory && (
+                  <p className="text-sm text-gray-700 mt-1">
+                    <strong>Dortoir :</strong> {dormitory.dormitories.name}
+                  </p>
+                )}
+              </div>
+
+              <p className="text-sm text-gray-600 mb-6">
+                Êtes-vous sûr de vouloir supprimer cette inscription ?
+              </p>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowDeleteModal(false)}
+                  className="flex-1 px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 disabled:opacity-50"
+                  disabled={deletingInscription}
+                >
+                  Annuler
+                </button>
+                <button
+                  onClick={handleDeleteInscription}
+                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={deletingInscription}
+                >
+                  {deletingInscription ? 'Suppression...' : '🗑️ Confirmer la suppression'}
+                </button>
+              </div>
             </div>
           </div>
         </div>

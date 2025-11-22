@@ -30,7 +30,7 @@ const inscriptionSchema = Joi.object({
 // Payment initiation validation
 const paymentInitiateSchema = Joi.object({
   inscription_id: Joi.string().uuid().required(),
-  payment_method: Joi.string().valid('orange_money', 'mtn_money', 'moov_money', 'wave').required()
+  payment_method: Joi.string().valid('orange_money', 'mtn_money', 'moov_money', 'wave', 'cash').required()
 });
 
 // Email validation

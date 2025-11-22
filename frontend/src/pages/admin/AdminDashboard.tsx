@@ -18,6 +18,13 @@ const AdminDashboard: React.FC = () => {
       color: 'green'
     },
     {
+      title: 'Paiements Espèces',
+      description: 'Valider les paiements en espèces en attente',
+      icon: '💵',
+      link: '/admin/cash-payments',
+      color: 'yellow'
+    },
+    {
       title: 'Dortoirs',
       description: 'Gérer les dortoirs et les capacités',
       icon: '🏠',

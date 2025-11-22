@@ -666,7 +666,13 @@ const createSimplePayment = async (req, res, next) => {
     const SEMINAR_PRICE = 5000; // 5000 FCFA
     console.log('✅ Référence:', reference);
 
-    // Create payment record with success status (simulated payment)
+    // Déterminer le statut en fonction de la méthode de paiement
+    const paymentStatus = payment_method === 'cash' ? 'pending' : 'success';
+    const inscriptionStatus = payment_method === 'cash' ? 'pending' : 'confirmed';
+
+    console.log(`💵 Méthode: ${payment_method}, Statut: ${paymentStatus}`);
+
+    // Create payment record
     console.log('💳 Création du paiement dans la base de données...');
     const { data: payment, error: paymentError } = await supabase
       .from('payments')
@@ -675,8 +681,8 @@ const createSimplePayment = async (req, res, next) => {
         amount: SEMINAR_PRICE,
         payment_method,
         reference_code: reference,
-        status: 'success', // Directly set as success
-        payment_date: new Date().toISOString()
+        status: paymentStatus, // 'pending' pour espèces, 'success' pour mobile money
+        payment_date: payment_method === 'cash' ? null : new Date().toISOString()
       }])
       .select()
       .single();
@@ -692,52 +698,59 @@ const createSimplePayment = async (req, res, next) => {
       });
     }
 
-    // Update inscription status to confirmed
+    // Update inscription status
     await supabase
       .from('inscriptions')
-      .update({ status: 'confirmed' })
+      .update({ status: inscriptionStatus })
       .eq('id', inscription_id);
 
-    // Auto-assign dormitory
-    console.log('🏠 DÉMARRAGE assignation automatique dortoir...');
-    console.log('   Inscription ID:', inscription_id);
-    console.log('   Genre:', inscription.gender);
-    try {
-      const assignmentResult = await dormitoryService.assignDormitory(inscription_id, inscription.gender);
-      console.log('✅ RÉSULTAT assignation:', assignmentResult);
-      if (assignmentResult.success) {
-        console.log(`✅ Dortoir assigné: ${assignmentResult.dormitory?.name}`);
-      } else {
-        console.error('❌ Échec assignation:', assignmentResult.message);
+    // Auto-assign dormitory UNIQUEMENT si le paiement est validé (non-cash)
+    if (payment_method !== 'cash') {
+      console.log('🏠 DÉMARRAGE assignation automatique dortoir...');
+      console.log('   Inscription ID:', inscription_id);
+      console.log('   Genre:', inscription.gender);
+      try {
+        const assignmentResult = await dormitoryService.assignDormitory(inscription_id, inscription.gender);
+        console.log('✅ RÉSULTAT assignation:', assignmentResult);
+        if (assignmentResult.success) {
+          console.log(`✅ Dortoir assigné: ${assignmentResult.dormitory?.name}`);
+        } else {
+          console.error('❌ Échec assignation:', assignmentResult.message);
+        }
+      } catch (assignError) {
+        console.error('⚠️  EXCEPTION lors de l\'assignation dortoir:');
+        console.error('   Message:', assignError.message);
+        console.error('   Stack:', assignError.stack);
+        // Continue même si l'assignation échoue
       }
-    } catch (assignError) {
-      console.error('⚠️  EXCEPTION lors de l\'assignation dortoir:');
-      console.error('   Message:', assignError.message);
-      console.error('   Stack:', assignError.stack);
-      // Continue même si l'assignation échoue
+    } else {
+      console.log('💵 Paiement en espèces - assignation dortoir en attente de validation');
     }
 
-    // Send confirmation email
-    try {
-      await sendPaymentReceiptEmail(
-        req.user,                    // user object
-        inscription,                 // inscription object
-        payment,                     // payment object (from DB)
-        null                         // receiptPdfPath (optional, null for now)
-      );
-      console.log('✅ Email de confirmation envoyé à:', req.user.email);
-    } catch (emailError) {
-      console.error('⚠️  Erreur envoi email:', emailError.message);
-      // Continue même si l'email échoue
+    // Send confirmation email UNIQUEMENT si le paiement est validé
+    if (payment_method !== 'cash') {
+      try {
+        await sendPaymentReceiptEmail(
+          req.user,                    // user object
+          inscription,                 // inscription object
+          payment,                     // payment object (from DB)
+          null                         // receiptPdfPath (optional, null for now)
+        );
+        console.log('✅ Email de confirmation envoyé à:', req.user.email);
+      } catch (emailError) {
+        console.error('⚠️  Erreur envoi email:', emailError.message);
+      }
     }
 
     res.status(201).json({
       success: true,
-      message: 'Paiement simulé avec succès !',
+      message: payment_method === 'cash' 
+        ? 'Demande de paiement créée. Veuillez vous présenter à l\'admin avec le montant en espèces.'
+        : 'Paiement effectué avec succès',
       data: payment
     });
-
   } catch (error) {
+    console.error('❌ ERREUR GLOBALE createSimplePayment:', error);
     next(error);
   }
 };
@@ -810,56 +823,93 @@ const validateCashPayment = async (req, res, next) => {
       });
     }
 
-    // Check if already paid
-    const { data: existingPayment } = await supabase
+    // Check if already paid successfully
+    const { data: existingSuccessPayment } = await supabase
       .from('payments')
       .select('*')
       .eq('inscription_id', inscriptionId)
       .eq('status', 'success')
       .single();
 
-    if (existingPayment) {
+    if (existingSuccessPayment) {
       return res.status(400).json({
         success: false,
         message: 'Payment already exists for this inscription'
       });
     }
 
+    // Check if there's a pending cash payment
+    const { data: pendingPayment } = await supabase
+      .from('payments')
+      .select('*')
+      .eq('inscription_id', inscriptionId)
+      .eq('payment_method', 'cash')
+      .eq('status', 'pending')
+      .single();
+
     const paymentAmount = amount || 5000; // Default seminar price
-    const referenceCode = `CASH-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+    let payment;
 
     console.log('💵 VALIDATION PAIEMENT ESPÈCES PAR ADMIN');
     console.log('   Inscription ID:', inscriptionId);
     console.log('   Montant:', paymentAmount, 'FCFA');
     console.log('   Admin:', req.user.email);
-    console.log('   Notes:', notes || 'Aucune');
+    console.log('   Paiement en attente existant:', pendingPayment ? 'OUI' : 'NON');
 
-    // Create payment record
-    const { data: payment, error: paymentError } = await supabase
-      .from('payments')
-      .insert([{
-        inscription_id: inscriptionId,
-        amount: paymentAmount,
-        payment_method: 'cash',
-        status: 'success',
-        reference_code: referenceCode,
-        payment_date: new Date().toISOString(),
-        transaction_id: referenceCode,
-        notes: notes || `Paiement en espèces validé par ${req.user.email}`
-      }])
-      .select()
-      .single();
+    if (pendingPayment) {
+      // Update existing pending payment
+      console.log('📝 Mise à jour du paiement en attente:', pendingPayment.id);
+      const { data: updatedPayment, error: updateError } = await supabase
+        .from('payments')
+        .update({
+          status: 'success',
+          payment_date: new Date().toISOString()
+        })
+        .eq('id', pendingPayment.id)
+        .select()
+        .single();
 
-    if (paymentError) {
-      console.error('❌ Erreur création paiement:', paymentError);
-      return res.status(500).json({
-        success: false,
-        message: 'Failed to create payment record',
-        error: paymentError.message
-      });
+      if (updateError) {
+        console.error('❌ Erreur mise à jour paiement:', updateError);
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to update payment record',
+          error: updateError.message
+        });
+      }
+
+      payment = updatedPayment;
+      console.log('✅ Paiement mis à jour:', payment.id);
+    } else {
+      // Create new payment record if no pending payment exists
+      const referenceCode = `CASH-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+      console.log('📝 Création d\'un nouveau paiement');
+      
+      const { data: newPayment, error: paymentError } = await supabase
+        .from('payments')
+        .insert([{
+          inscription_id: inscriptionId,
+          amount: paymentAmount,
+          payment_method: 'cash',
+          status: 'success',
+          reference_code: referenceCode,
+          payment_date: new Date().toISOString()
+        }])
+        .select()
+        .single();
+
+      if (paymentError) {
+        console.error('❌ Erreur création paiement:', paymentError);
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to create payment record',
+          error: paymentError.message
+        });
+      }
+
+      payment = newPayment;
+      console.log('✅ Paiement créé:', payment.id);
     }
-
-    console.log('✅ Paiement créé:', payment.id);
 
     // Update inscription status to confirmed
     const { error: updateError } = await supabase

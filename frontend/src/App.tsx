@@ -17,6 +17,7 @@ import AdminPayments from './pages/admin/AdminPayments'
 import AdminDormitories from './pages/admin/AdminDormitories'
 import AdminAssignments from './pages/admin/AdminAssignments'
 import AdminStats from './pages/admin/AdminStats'
+import AdminCashPayments from './pages/admin/AdminCashPayments'
 
 // Components
 import ProtectedRoute from './components/ProtectedRoute'
@@ -106,6 +107,14 @@ function App() {
             element={
               <AdminRoute>
                 <AdminPayments />
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/cash-payments"
+            element={
+              <AdminRoute>
+                <AdminCashPayments />
               </AdminRoute>
             }
           />

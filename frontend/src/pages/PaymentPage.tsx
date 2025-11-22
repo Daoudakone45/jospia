@@ -26,7 +26,8 @@ const PaymentPage: React.FC = () => {
     { id: 'orange_money', name: 'Orange Money', icon: '🟠', color: 'orange' },
     { id: 'mtn_money', name: 'MTN Money', icon: '🟡', color: 'yellow' },
     { id: 'moov_money', name: 'Moov Money', icon: '🟢', color: 'green' },
-    { id: 'wave', name: 'Wave', icon: '🔵', color: 'blue' }
+    { id: 'wave', name: 'Wave', icon: '🔵', color: 'blue' },
+    { id: 'cash', name: 'Espèces (à l\'admin)', icon: '💵', color: 'gray' }
   ];
 
   useEffect(() => {
@@ -46,28 +47,50 @@ const PaymentPage: React.FC = () => {
     }
   };
 
+  const handleMethodClick = (methodId: string) => {
+    if (methodId === 'cash') {
+      setSelectedMethod(methodId);
+    } else {
+      toast.error('Ce moyen de paiement n\'est pas encore disponible', { duration: 4000 });
+      toast('📞 Veuillez choisir "Espèces" et contacter l\'admin pour valider votre paiement', {
+        duration: 6000,
+        icon: 'ℹ️'
+      });
+      toast('👤 Admin: Daoudakone - Contact disponible lors de l\'inscription', {
+        duration: 6000,
+        icon: '📱'
+      });
+    }
+  };
+
   const handlePayment = async () => {
     if (!selectedMethod) {
-      toast.error('Veuillez sélectionner une méthode de paiement');
+      toast.error('Veuillez sélectionner le paiement en espèces');
+      return;
+    }
+
+    if (selectedMethod !== 'cash') {
+      toast.error('Seul le paiement en espèces est disponible pour le moment');
       return;
     }
 
     setProcessing(true);
     try {
-      toast.loading('Traitement du paiement...');
+      toast.loading('Création de la demande de paiement...');
       
-      // Créer le paiement simulé directement
       await paymentService.createSimple({
         inscription_id: inscriptionId!,
-        payment_method: selectedMethod
+        payment_method: 'cash'
       });
 
       toast.dismiss();
-      toast.success('🎉 Paiement effectué avec succès !');
+      toast.success('✅ Demande de paiement créée !');
+      toast('💵 Veuillez vous présenter à l\'admin avec 5000 FCFA en espèces', {
+        duration: 5000,
+        icon: 'ℹ️'
+      });
       
-      // Attendre 1 seconde puis rediriger
       setTimeout(() => {
-        toast.success('✅ Dortoir attribué automatiquement !');
         navigate('/dashboard');
       }, 1500);
     } catch (error: any) {
@@ -153,20 +176,37 @@ const PaymentPage: React.FC = () => {
           {/* Payment Methods */}
           <div className="bg-white rounded-lg shadow-md p-6 mb-6">
             <h2 className="text-xl font-bold mb-4">📱 Méthode de paiement</h2>
+            
+            {/* Info Alert */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+              <p className="text-blue-800 text-sm">
+                <strong>ℹ️ Information :</strong> Seul le paiement en espèces est disponible actuellement.
+                Veuillez contacter l'admin pour les autres moyens de paiement.
+              </p>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {paymentMethods.map((method) => (
                 <button
                   key={method.id}
-                  onClick={() => setSelectedMethod(method.id)}
+                  onClick={() => handleMethodClick(method.id)}
+                  disabled={method.id !== 'cash'}
                   className={`p-4 border-2 rounded-lg transition-all ${
                     selectedMethod === method.id
                       ? 'border-green-600 bg-green-50'
-                      : 'border-gray-200 hover:border-gray-300'
+                      : method.id === 'cash'
+                      ? 'border-gray-200 hover:border-gray-300'
+                      : 'border-gray-200 bg-gray-50 opacity-60 cursor-not-allowed'
                   }`}
                 >
                   <div className="flex items-center gap-3">
                     <span className="text-3xl">{method.icon}</span>
-                    <span className="font-medium">{method.name}</span>
+                    <div className="text-left">
+                      <div className="font-medium">{method.name}</div>
+                      {method.id !== 'cash' && (
+                        <div className="text-xs text-red-600 mt-1">Indisponible</div>
+                      )}
+                    </div>
                   </div>
                   {selectedMethod === method.id && (
                     <div className="mt-2 text-green-600 text-sm">✅ Sélectionné</div>
@@ -197,7 +237,9 @@ const PaymentPage: React.FC = () => {
           {/* Info Box */}
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mt-6">
             <p className="text-yellow-800 text-sm text-center">
-              <strong>Mode simulation :</strong> Le paiement est simulé automatiquement (pas besoin d'API réelle)
+              <strong>💵 Paiement en espèces uniquement</strong><br/>
+              Après validation, présentez-vous à l'admin avec le montant exact (5000 FCFA).
+              L'admin validera votre paiement et vous serez automatiquement assigné à un dortoir.
             </p>
           </div>
 
